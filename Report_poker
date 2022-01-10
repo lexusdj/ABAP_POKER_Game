@@ -1,3 +1,4 @@
+PROGRAM zpoker.
 CLASS lcl_random_num DEFINITION.
   PUBLIC SECTION.
     CLASS-METHODS: class_constructor,
@@ -42,6 +43,10 @@ CLASS lcl_baraja DEFINITION.
              carta TYPE REF TO lcl_card,
            END OF ty_baraja,
            ty_barajas TYPE STANDARD TABLE OF ty_baraja WITH DEFAULT KEY.
+*    class-METHODS: class_contructor.
+
+    DATA cartas TYPE ty_barajas. "las cartas en juego
+
     METHODS: constructor IMPORTING iv_game TYPE c, "create la baraja de cartas
       barajar_cartas, "mezcla cartas
       get_cartas RETURNING VALUE(r_cartas) TYPE ty_barajas,
@@ -49,12 +54,19 @@ CLASS lcl_baraja DEFINITION.
 *      remove_card IMPORTING i_carta  TYPE REF TO lcl_card.
     "A RETURNING parameter must be fully typed. (internal table type must contain a key specification "WITH DEFAULT KEY")
   PRIVATE SECTION.
-    DATA cartas TYPE ty_barajas.
+    CLASS-DATA: poker_baraja   TYPE ty_barajas, "static baraja¿?
+                spanish_baraja TYPE ty_barajas.
+    CLASS-METHODS create_baraja IMPORTING iv_game  TYPE c
+                                EXPORTING e_baraja TYPE ANY TABLE.
+    "RETURNING VALUE(r_baraja) type ANY TABLE.
+
     METHODS: remove_card IMPORTING i_carta  TYPE REF TO lcl_card.
 ENDCLASS.
 CLASS lcl_baraja IMPLEMENTATION.
-
-  METHOD constructor.
+*  method class_contructor.
+*
+*  endmethod.
+  METHOD create_baraja.
     DATA: palo        TYPE i,
           palo_ch(10) TYPE c,
           color       TYPE c,
@@ -99,16 +111,50 @@ CLASS lcl_baraja IMPLEMENTATION.
                 iv_valor = figura
                 iv_color = color
             ).
-            APPEND l_carta TO cartas.
+            INSERT l_carta INTO TABLE e_baraja.
+*            APPEND l_carta to e_BARAJA.
           ENDDO.
 
         ENDDO.
 
       WHEN 'Baraja Española'.
+        "dummy game
+        CLEAR numero.
         DO 40 TIMES.
-
+          ADD 1 TO numero.
+          figura = numero.
+          color = 'B'. "blanco
+          palo_ch = 'Bastos'.
+          l_carta-carta = NEW lcl_card(
+               iv_tipo  = palo_ch
+               iv_valor = figura
+               iv_color = color
+           ).
+          INSERT l_carta INTO TABLE e_baraja.
         ENDDO.
 
+    ENDCASE.
+  ENDMETHOD.
+  METHOD constructor.
+*    DATA table TYPE STANDARD TABLE OF table.
+    FIELD-SYMBOLS <table>  TYPE ANY TABLE.
+
+    CASE iv_game.
+      WHEN 'Poker'.
+        IF poker_baraja[] IS INITIAL.
+          create_baraja( EXPORTING iv_game = iv_game
+                         IMPORTING e_baraja = <table> ).
+          poker_baraja[] = <table>. "static nº of cards.
+        ENDIF.
+        cartas = poker_baraja.
+      WHEN 'Baraja Española'.
+        IF spanish_baraja[] IS INITIAL.
+          create_baraja( EXPORTING iv_game = iv_game
+                         IMPORTING e_baraja = <table> ).
+          spanish_baraja[] = <table>. "static nº of cards.
+        ENDIF.
+        cartas = spanish_baraja.
+      WHEN OTHERS.
     ENDCASE.
   ENDMETHOD.
   METHOD barajar_cartas.
@@ -228,7 +274,7 @@ CLASS  lcl_table_poker IMPLEMENTATION.
   METHOD show_card_4.
     DATA l_text TYPE string.
     l_text = |card flop: { card4->palo } { card4->valor }|.
-     out->begin_section( 'Table:' )->write_text( l_text ).
+    out->begin_section( 'Table:' )->write_text( l_text ).
 *    cl_demo_output=>display( l_text ).
   ENDMETHOD.
 
@@ -243,34 +289,34 @@ ENDCLASS.
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 * Example
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
- "screen
-    DATA output TYPE REF TO if_demo_output.
-    output = cl_demo_output=>new( cl_demo_output=>text_mode ).
-    "Start game with getting the cards
-    DATA(baraja) = NEW lcl_baraja( iv_game = 'Poker'  ). "#SCRIPT ZRSTPDA_SCRIPT_ZTABLINES
-
-    "barja la carta
-    baraja->barajar_cartas( ).
-    "player 1 starts
-    DATA(player1) = NEW lcl_player( i_card1 =  baraja->give_card(  ) i_card2 = baraja->give_card(  ) ).
-    "player 2 starts
-    DATA(player2) = NEW lcl_player( i_card1 =  baraja->give_card(  ) i_card2 = baraja->give_card(  ) ).
-    DATA(table) = NEW lcl_table_poker(
-        i_card1 = baraja->give_card(  )
-        i_card2 = baraja->give_card(  )
-        i_card3 = baraja->give_card(  )
-    ).
-    player1->show_cards(  EXPORTING out = output ).
-    player2->show_cards(   EXPORTING out = output ).
-    table->show_3cards(  EXPORTING out = output ).
-    table->flop( i_card = baraja->give_card(  ) ).
-    table->show_card_4(  EXPORTING out = output ).
-    table->river( i_card = baraja->give_card(  ) ).
-    table->show_final_card(  EXPORTING out = output ).
-    output->display(
-*      EXPORTING
-*        data   =     " Text or Data
-*        name   =     " Name
-*      RECEIVING
-*        output =
-    ).
+"screen
+*    DATA output TYPE REF TO if_demo_output.
+*    output = cl_demo_output=>new( cl_demo_output=>text_mode ).
+*    "Start game with getting the cards
+*    DATA(baraja) = NEW lcl_baraja( iv_game = 'Poker'  ). "#SCRIPT ZRSTPDA_SCRIPT_ZTABLINES
+*
+*    "barja la carta
+*    baraja->barajar_cartas( ).
+*    "player 1 starts
+*    DATA(player1) = NEW lcl_player( i_card1 =  baraja->give_card(  ) i_card2 = baraja->give_card(  ) ).
+*    "player 2 starts
+*    DATA(player2) = NEW lcl_player( i_card1 =  baraja->give_card(  ) i_card2 = baraja->give_card(  ) ).
+*    DATA(table) = NEW lcl_table_poker(
+*        i_card1 = baraja->give_card(  )
+*        i_card2 = baraja->give_card(  )
+*        i_card3 = baraja->give_card(  )
+*    ).
+*    player1->show_cards(  EXPORTING out = output ).
+*    player2->show_cards(   EXPORTING out = output ).
+*    table->show_3cards(  EXPORTING out = output ).
+*    table->flop( i_card = baraja->give_card(  ) ).
+*    table->show_card_4(  EXPORTING out = output ).
+*    table->river( i_card = baraja->give_card(  ) ).
+*    table->show_final_card(  EXPORTING out = output ).
+*    output->display(
+**      EXPORTING
+**        data   =     " Text or Data
+**        name   =     " Name
+**      RECEIVING
+**        output =
+*    ).
