@@ -1,0 +1,239 @@
+*<SCRIPT:PERSISTENT>
+REPORT  rstpda_script_template.
+
+*<SCRIPT:HEADER>
+*<SCRIPTNAME>ZRSTPDA_SCRIPT_OBJECT_TABLE</SCRIPTNAME>
+*<SCRIPT_CLASS>LCL_DEBUGGER_SCRIPT</SCRIPT_CLASS>
+*<SCRIPT_COMMENT>Debugger Skript: Default Template</SCRIPT_COMMENT>
+*<SINGLE_RUN>X</SINGLE_RUN>
+
+*</SCRIPT:HEADER>
+
+*<SCRIPT:PRESETTINGS>
+
+*</SCRIPT:PRESETTINGS>
+
+*<SCRIPT:SCRIPT_CLASS>
+
+*---------------------------------------------------------------------*
+*       CLASS lcl_debugger_script DEFINITION
+*---------------------------------------------------------------------*
+
+*---------------------------------------------------------------------*
+CLASS lcl_debugger_script DEFINITION INHERITING FROM  cl_tpda_script_class_super  .
+  " ejemplo abap class to read
+  "https://blogs.sap.com/2016/11/04/use-abap-debugger-script-to-view-dynamic-query-service-selection-parameter-in-an-efficient-way/
+  PUBLIC SECTION.
+    METHODS: prologue  REDEFINITION,
+      init    REDEFINITION,
+      script  REDEFINITION,
+      end     REDEFINITION.
+    DATA: p_itab_name TYPE string VALUE 'BARAJA_CARTAS',
+          objecto     TYPE string VALUE 'LO_CARTA',
+          loref       TYPE string VALUE 'BARAJA'.
+
+
+    TYPES: BEGIN OF ty_disp,
+             palo(10) TYPE c, "picas, corazones, trebol... o bastos oros copas espadas...
+             valor(2) TYPE c, "numerical character K-Q-J o sota caballo rey
+             color(1) TYPE c,
+           END OF ty_disp,
+           ty_output_tab TYPE STANDARD TABLE OF ty_disp WITH DEFAULT KEY.
+    DATA  output_tab TYPE ty_output_tab.
+
+ENDCLASS.                    "lcl_debugger_script DEFINITION
+*---------------------------------------------------------------------*
+*       CLASS lcl_debugger_script IMPLEMENTATION
+*---------------------------------------------------------------------*
+
+*---------------------------------------------------------------------*
+CLASS lcl_debugger_script IMPLEMENTATION.
+  METHOD prologue.
+*** generate abap_source (source handler for ABAP)
+    super->prologue( ).
+  ENDMETHOD.                    "prolog
+
+  METHOD init.
+*** insert your initialization code here
+  ENDMETHOD.                    "init
+  METHOD script.
+
+    DATA l_custom TYPE tpda_trace_custom.
+*
+*    DATA: l_itab TYPE REF TO cl_tpda_script_tabledescr,
+*          table  TYPE REF TO data.
+*
+*    FIELD-SYMBOLS  <l_tab> TYPE STANDARD TABLE.
+    TRY.
+*        l_itab ?= cl_tpda_script_data_descr=>factory( p_itab_name ).
+*        l_itab->elem_clone(
+**  EXPORTING
+**    p_keys         =                                        " TPDA: Key Fields of an Internal Table
+**    p_unique       =                                        " General Flag
+**    p_table_kind   = CL_TPDA_SCRIPT_TABLEDESCR=>TK_STANDARD
+**    p_string_clone =                                        " General Flag
+*  RECEIVING
+*    p_ref_clone    = table
+*        ).
+*        ASSIGN table->* TO <l_tab>.
+
+        DATA lobject_name TYPE tpda_var_name.
+        lobject_name  = cl_tpda_script_data_descr=>get_variable_info( loref )-varvalue. "BARAJA->
+        "show trace
+*        l_custom-id =  lobject_name.
+*        trace->add_custom_info( l_custom ).
+
+        DATA lobject_name2 TYPE tpda_var_name.
+        lobject_name2 = cl_tpda_script_data_descr=>get_variable_info( lobject_name && '-CARTAS' )-varvalue. "BARAJA-CARTAS
+*        l_custom-id =  lobject_name2.
+*        trace->add_custom_info( l_custom ).
+
+        DATA lr_entity_list TYPE REF TO cl_tpda_script_tabledescr.
+*        lr_entity_list ?= cl_tpda_script_data_descr=>factory( lobject_name2 ). "BARAJA->CARTAS[]
+        lr_entity_list ?= cl_tpda_script_data_descr=>factory( lobject_name && '-CARTAS'  ).
+        DATA lv_number_of_selparam        TYPE i.
+        lv_number_of_selparam = lr_entity_list->linecnt( ).
+*        l_custom-id = lv_number_of_selparam.
+*        trace->add_custom_info( l_custom ).
+        DO lv_number_of_selparam TIMES.
+          APPEND INITIAL LINE TO output_tab ASSIGNING FIELD-SYMBOL(<out>).
+          "BARAJA->CARTAS[1]-CARTA->PALO
+          <out>-palo = cl_tpda_script_data_descr=>get_simple_value( lobject_name  && '-CARTAS[' && sy-index && ']-CARTA->PALO' ) .
+*          l_custom-id =  <out>-palo.
+*          trace->add_custom_info( l_custom ).
+          "BARAJA->CARTAS[1]-CARTA->COLOR
+          <out>-color = cl_tpda_script_data_descr=>get_simple_value( lobject_name && '-CARTAS[' && sy-index && ']-CARTA->COLOR' ) .
+          <out>-valor = cl_tpda_script_data_descr=>get_simple_value( lobject_name && '-CARTAS[' && sy-index && ']-CARTA->VALOR' ) .
+        ENDDO.
+        "catalog
+        DATA lt_col_alv                   TYPE tpda_script_service_source_tab.
+        DATA ls_col_alv                   LIKE LINE OF lt_col_alv.
+        REFRESH lt_col_alv.
+        ls_col_alv-fieldname = ls_col_alv-content = 'PALO'.
+        APPEND ls_col_alv TO lt_col_alv.
+        ls_col_alv-fieldname = ls_col_alv-content = 'COLOR'.
+        APPEND ls_col_alv TO lt_col_alv.
+        ls_col_alv-fieldname = ls_col_alv-content = 'VALOR'.
+        APPEND ls_col_alv TO lt_col_alv.
+
+        CALL METHOD cl_tpda_script_data_display=>data_display
+          EXPORTING
+*           p_set_popup   =
+            p_list_header = ' Poker cartas'
+            p_column_it   = lt_col_alv
+            p_popup       = 'X'
+          CHANGING
+            p_data_it     = output_tab.
+
+*** INFO: First create a description object using cl_tpda_script_data_descr=>factory( )
+*** Use notation {O:Instancenumber} / e.g. {O:11} as variable name
+****************************************************************
+*Interface (CLASS = CL_TPDA_SCRIPT_OBJECTDESCR / METHOD = ATTRIBUTES )
+*Importing
+*        REFERENCE( P_FILTER ) TYPE CSEQUENCE OPTIONAL
+*Returning
+*        VALUE( P_ATTR_IT ) TYPE TPDA_SCRIPT_OBJECT_ATTRIBUT_IT OPTIONAL
+****************************************************************
+*        DATA lo_carta TYPE REF TO cl_tpda_script_objectdescr.
+*        lo_carta ?= cl_tpda_script_data_descr=>factory( p_var_name = objecto ).
+**CATCH cx_tpda_varname. " TPDA: Variable does not exist( )
+**TRY.
+*        DATA attr_it TYPE tpda_script_object_attribut_it.
+*        CALL METHOD lo_carta->attributes
+**  EXPORTING
+**    p_filter  =
+*          RECEIVING
+*            p_attr_it = attr_it.
+*
+*        l_custom-id = 'Lineas'.
+*        l_custom-value = lines( <l_tab> ).
+*        "show trace
+*        trace->add_custom_info( l_custom ).
+*        l_custom-id = 'LCL_CARD'.
+*        READ TABLE attr_it ASSIGNING FIELD-SYMBOL(<a>) INDEX 1.
+*        l_custom-value =  lo_carta-palo.
+*
+*        trace->add_custom_info( l_custom ).
+*        CALL METHOD cl_tpda_script_data_display=>data_display
+*          EXPORTING
+**           p_set_popup   =
+**           p_list_header =
+**           p_column_it   =
+*            p_popup   = 'X'
+*          CHANGING
+*            p_data_it = attr_it.
+
+* CATCH cx_tpda_data_descr_invalidated .
+* CATCH cx_tpda_varname .
+*ENDTRY.
+
+*
+*        l_custom-id = 'Lineas'.
+*        l_custom-value = lines( <l_tab> ).
+        "show trace
+*        trace->add_custom_info( l_custom ).
+****************************************************************
+*Interface (CLASS = CL_TPDA_SCRIPT_DATA_DISPLAY / METHOD = DATA_DISPLAY )
+*Importing
+*        REFERENCE( P_SET_POPUP ) TYPE TPDA_SCRIPT_SET_SCREEN_POPUP OPTIONAL
+*        REFERENCE( P_LIST_HEADER ) TYPE LVC_TITLE OPTIONAL
+*        REFERENCE( P_COLUMN_IT ) TYPE TPDA_SCRIPT_SERVICE_SOURCE_TAB OPTIONAL
+*        REFERENCE( P_POPUP ) TYPE FLAG OPTIONAL
+*Changing
+*        REFERENCE( P_DATA_IT ) TYPE ANY TABLE OPTIONAL
+****************************************************************
+*        FIELD-SYMBOLS: <l_comp> TYPE any.
+*        FIELD-SYMBOLS: <l_clone> TYPE any.
+
+*        LOOP AT <l_tab> ASSIGNING <l_clone>.
+*          ASSIGN COMPONENT 2 OF STRUCTURE <l_clone> TO <l_comp>.
+*          IF sy-subrc = 0.
+*            FIND '{' IN <l_comp> MATCH OFFSET l_off.
+*            IF sy-subrc = 0.
+*              <l_comp> = <l_comp>+l_off(*).
+*            ELSE.
+*              RAISE EXCEPTION TYPE cx_tpda_varname.
+*            ENDIF.
+*
+*            CONCATENATE <l_comp> '-ADDRESS-CARRID' INTO l_comp_long.
+*            wa_customer-name = cl_tpda_script_data_descr=>get_simple_value( p_var_name = l_comp_long ).
+*            APPEND wa_customer TO it_customer_info.
+*          ENDIF.
+*        ENDLOOP.
+*TRY.
+*        CALL METHOD cl_tpda_script_data_display=>data_display
+*          EXPORTING
+**           p_set_popup   =
+**           p_list_header =
+**           p_column_it   =
+*            p_popup   = 'X'
+*          CHANGING
+*            p_data_it = <l_tab>.
+* CATCH cx_tpda_table_wrong_table_type .
+*ENDTRY.
+
+*        loop at table ASSIGNING FIELD-SYMBOL(<al>).
+*        endloop.
+      CATCH cx_tpda_varname.                " TPDA: Variable does not exist
+      CATCH cx_tpda_script_no_simple_type.
+      CATCH cx_tpda_table_wrong_key.
+      CATCH cx_tpda_data_descr_invalidated.
+      CATCH cx_tpda_table_wrong_table_type. " TPDA: Wrong Table Type
+
+        "show trace
+        l_custom-id = 'Catch error'.
+        trace->add_custom_info( l_custom ).
+    ENDTRY.
+*** insert your script code here
+*    me->break( ).
+
+  ENDMETHOD.                    "script
+  METHOD end.
+*** insert your code which shall be executed at the end of the scripting (before trace is saved)
+*** here
+
+  ENDMETHOD.                    "end
+ENDCLASS.                    "lcl_debugger_script IMPLEMENTATION
+*</SCRIPT:SCRIPT_CLASS>
+
+*</SCRIPT:PERSISTENT>
